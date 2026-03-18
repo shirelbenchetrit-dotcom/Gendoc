@@ -27,24 +27,9 @@ export async function proxy(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname
 
-  // Routes protégées
+  // Routes protégées — redirige vers /login si non authentifié
   if ((pathname.startsWith('/student') || pathname.startsWith('/admin')) && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
-  }
-
-  // Rediriger les utilisateurs connectés depuis login/register
-  if ((pathname === '/login' || pathname === '/register') && user) {
-    // Vérifier le rôle
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('role')
-      .eq('id', user.id)
-      .single()
-
-    if (profile?.role === 'admin') {
-      return NextResponse.redirect(new URL('/admin', request.url))
-    }
-    return NextResponse.redirect(new URL('/student', request.url))
   }
 
   return supabaseResponse
