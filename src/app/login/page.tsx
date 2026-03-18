@@ -37,14 +37,13 @@ export default function LoginPage() {
         .eq('id', user.id)
         .single()
       if (profile?.role === 'admin') {
-        router.push('/admin')
+        window.location.href = '/admin'
       } else {
-        router.push('/student')
+        window.location.href = '/student'
       }
     } else {
-      router.push('/')
+      window.location.href = '/'
     }
-    router.refresh()
   }
 
   return (
