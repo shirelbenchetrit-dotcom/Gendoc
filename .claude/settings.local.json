@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(export NVM_DIR=\"$HOME/.nvm\")",
+      "Bash(source \"$NVM_DIR/nvm.sh\")",
+      "Bash(npx create-next-app@latest . --typescript --tailwind --eslint --app --src-dir --import-alias \"@/*\" --no-git --yes)",
+      "Bash(mkdir -p /tmp/gendoc-build)",
+      "Read(//tmp/**)",
+      "Bash(npm install:*)",
+      "Read(//Users/shirelazria/Desktop/gendoc/$HOME/.nvm/**)",
+      "Read(//Users/shirelazria/Desktop/gendoc/$HOME/**)",
+      "Bash(source /Users/shirelazria/.nvm/nvm.sh)",
+      "Bash(npm --version)",
+      "Bash(npm run:*)",
+      "Bash(git init:*)",
+      "Bash(git remote:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)"
+    ]
+  }
+}
