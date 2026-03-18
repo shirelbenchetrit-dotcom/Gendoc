@@ -20,7 +20,7 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password })
 
     if (error) {
       setError('Email ou mot de passe incorrect')
@@ -28,8 +28,8 @@ export default function LoginPage() {
       return
     }
 
-    // Récupérer le rôle pour naviguer directement sans boucle de redirect
-    const { data: { user } } = await supabase.auth.getUser()
+    // Utiliser directement le user retourné par signInWithPassword (pas de 2e appel réseau)
+    const user = data.user
     if (user) {
       const { data: profile } = await supabase
         .from('profiles')
