@@ -20,8 +20,10 @@ const styles = StyleSheet.create({
   },
   body: { fontSize: 11, lineHeight: 1.6, color: '#333333', marginBottom: 12 },
   bold: { fontFamily: 'Helvetica-Bold' },
+  salutation: { fontSize: 11, lineHeight: 1.6, color: '#333333', marginBottom: 16 },
+  closing: { fontSize: 11, lineHeight: 1.6, color: '#333333', marginBottom: 40 },
   stamp: {
-    marginTop: 40,
+    marginTop: 20,
     alignSelf: 'flex-end',
     textAlign: 'center',
     borderWidth: 1,
@@ -45,7 +47,6 @@ const styles = StyleSheet.create({
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return '—'
-  // Éviter le décalage UTC pour les dates YYYY-MM-DD
   const parts = d.split('T')[0].split('-')
   if (parts.length === 3) {
     const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
@@ -54,27 +55,11 @@ function fmtDate(d: string | null | undefined) {
   return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-function dateFinFormation(formation: string): string {
-  const f = formation.toUpperCase()
-  if (f.includes('PASS') || f.includes('LAS') || f.includes('PAES')) {
-    return '15 juin 2027'
-  }
-  return '15 juin 2027'
-}
-
 interface Props { student: Student }
 
-export function CertificatPDF({ student }: Props) {
+export function LettreRecoFR({ student }: Props) {
   const today = fmtDate(new Date().toISOString())
-  const annee = new Date().getFullYear()
-
-  const nationalite = student.nationalite || 'France'
-  const dateNaissance = student.date_naissance
-    ? fmtDate(student.date_naissance)
-    : 'Non renseignée'
-  const prixFormation = student.prix_formation || 'Nous contacter'
-  const dateDebut = '15 septembre ' + annee
-  const dateFin = dateFinFormation(student.formation)
+  const prenomNom = `${student.first_name} ${student.last_name.toUpperCase()}`
 
   return (
     <Document>
@@ -86,55 +71,40 @@ export function CertificatPDF({ student }: Props) {
         </View>
 
         {/* Titre */}
-        <Text style={styles.title}>CERTIFICAT DE SCOLARITÉ</Text>
+        <Text style={styles.title}>LETTRE DE RECOMMANDATION</Text>
 
-        {/* Corps */}
-        <Text style={styles.body}>
-          Je soussignée, Allouche Jennifer, responsable administrative et opérationnelle de la prépa
-          DIPLOMA SANTÉ, atteste que l&apos;étudiant(e) de nationalité : {nationalite}
-        </Text>
+        <Text style={[styles.body, { marginBottom: 20 }]}>Paris, le {today}</Text>
+
+        <Text style={styles.salutation}>À qui de droit,</Text>
 
         <Text style={styles.body}>
-          Nom/Prénom :{' '}
-          <Text style={styles.bold}>
-            {student.last_name.toUpperCase()} {student.first_name}
-          </Text>
-        </Text>
-
-        <Text style={styles.body}>
-          Né(e) le {dateNaissance}, est inscrit(e) pour l&apos;année {annee}/{annee + 1} au sein de notre institut
-          d&apos;enseignement dans le cadre de la formation :
-        </Text>
-
-        <Text style={styles.body}>
-          -{' '}
+          Je soussignée, Benchetrit Shirel, responsable des formations de la prépa
+          DIPLOMA SANTÉ, ai le plaisir de recommander{' '}
+          <Text style={styles.bold}>{prenomNom}</Text>
+          {' '}qui a suivi avec sérieux et engagement la formation{' '}
           <Text style={styles.bold}>{student.formation}</Text>
+          {' '}au sein de Diploma Santé.
         </Text>
 
         <Text style={styles.body}>
-          Le prix total de la formation est de :{' '}
-          <Text style={styles.bold}>{prixFormation}</Text>
+          Cet étudiant a fait preuve de rigueur, de motivation et d&apos;un réel investissement tout au long de son parcours.
         </Text>
 
         <Text style={styles.body}>
-          Début de la formation :{' '}
-          <Text style={styles.bold}>{dateDebut}</Text>
+          Je le/la recommande vivement pour tout projet d&apos;études supérieures ou toute candidature professionnelle.
         </Text>
 
-        <Text style={styles.body}>
-          Fin de la formation :{' '}
-          <Text style={styles.bold}>{dateFin}</Text>
+        <Text style={styles.closing}>
+          Veuillez agréer, Madame, Monsieur, l&apos;expression de mes salutations distinguées.
         </Text>
 
-        <Text style={[styles.body, { marginTop: 20 }]}>
+        <Text style={[styles.body, { marginBottom: 4 }]}>
           Fait à Paris,{'\n'}Le {today}
         </Text>
 
-        <Text style={[styles.body, { marginTop: 8 }]}>
-          Tampon et signature de la direction :
-        </Text>
+        <Text style={[styles.body, { marginBottom: 4 }]}>Tampon et signature de la direction :</Text>
 
-        {/* Tampon bas droite */}
+        {/* Tampon */}
         <View style={styles.stamp}>
           <Text style={styles.stampTitle}>DIPLOMA SANTE</Text>
           <Text style={styles.stampText}>85 Avenue Ledru Rollin</Text>

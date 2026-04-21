@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server'
 import { redirect } from 'next/navigation'
-import AdminNav from '@/components/AdminNav'
+import AdminSidebar from '@/components/AdminSidebar'
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const supabase = await createClient()
@@ -8,19 +8,15 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   if (!user) redirect('/login')
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('*')
-    .eq('id', user.id)
-    .single()
-
-  if (!profile || profile.role !== 'admin') redirect('/student')
+  // All authenticated users are admins
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <AdminNav profile={profile} />
-      <main className="max-w-6xl mx-auto px-4 py-8">
-        {children}
+    <div className="min-h-screen flex bg-gray-50">
+      <AdminSidebar />
+      <main className="flex-1 p-8">
+        <div className="max-w-5xl mx-auto">
+          {children}
+        </div>
       </main>
     </div>
   )

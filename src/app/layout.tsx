@@ -1,24 +1,21 @@
-import type { Metadata } from "next";
-import { Inter } from "next/font/google";
-import "./globals.css";
-
-const inter = Inter({ subsets: ["latin"] });
+import type { Metadata } from 'next'
+import './globals.css'
 
 export const metadata: Metadata = {
-  title: "Gendoc — Diploma Santé",
-  description: "Plateforme de gestion des documents administratifs",
-};
+  title: 'Gendoc — Diploma Santé',
+  description: 'Plateforme de génération de documents administratifs',
+}
 
 export default function RootLayout({
   children,
-}: Readonly<{
-  children: React.ReactNode;
-}>) {
+}: {
+  children: React.ReactNode
+}) {
   return (
     <html lang="fr">
-      <body className={`${inter.className} bg-gray-50 min-h-screen`}>
+      <body className="bg-gray-50 min-h-screen">
         {children}
       </body>
     </html>
-  );
+  )
 }

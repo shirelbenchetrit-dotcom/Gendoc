@@ -23,12 +23,14 @@ export async function proxy(request: NextRequest) {
     }
   )
 
-  const { data: { user } } = await supabase.auth.getUser()
+  // Refresh session — do not remove
+  const { data: { user }, error } = await supabase.auth.getUser()
 
   const pathname = request.nextUrl.pathname
+  const cookies = request.cookies.getAll().map(c => c.name)
+  console.log('MIDDLEWARE:', pathname, '| user:', user?.email ?? 'none', '| error:', error?.message ?? 'none', '| cookies:', cookies.join(', '))
 
-  // Routes protégées — redirige vers /login si non authentifié
-  if ((pathname.startsWith('/student') || pathname.startsWith('/admin')) && !user) {
+  if (pathname.startsWith('/admin') && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
@@ -36,5 +38,5 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/pdf).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|api/).*)'],
 }

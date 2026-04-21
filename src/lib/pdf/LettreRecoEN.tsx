@@ -20,8 +20,10 @@ const styles = StyleSheet.create({
   },
   body: { fontSize: 11, lineHeight: 1.6, color: '#333333', marginBottom: 12 },
   bold: { fontFamily: 'Helvetica-Bold' },
+  salutation: { fontSize: 11, lineHeight: 1.6, color: '#333333', marginBottom: 16 },
+  closing: { fontSize: 11, lineHeight: 1.6, color: '#333333', marginBottom: 40 },
   stamp: {
-    marginTop: 40,
+    marginTop: 20,
     alignSelf: 'flex-end',
     textAlign: 'center',
     borderWidth: 1,
@@ -45,96 +47,64 @@ const styles = StyleSheet.create({
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return '—'
-  // Éviter le décalage UTC pour les dates YYYY-MM-DD
   const parts = d.split('T')[0].split('-')
   if (parts.length === 3) {
     const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
-    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
+    return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
   }
-  return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
-}
-
-function dateFinFormation(formation: string): string {
-  const f = formation.toUpperCase()
-  if (f.includes('PASS') || f.includes('LAS') || f.includes('PAES')) {
-    return '15 juin 2027'
-  }
-  return '15 juin 2027'
+  return new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
 interface Props { student: Student }
 
-export function CertificatPDF({ student }: Props) {
+export function LettreRecoEN({ student }: Props) {
   const today = fmtDate(new Date().toISOString())
-  const annee = new Date().getFullYear()
-
-  const nationalite = student.nationalite || 'France'
-  const dateNaissance = student.date_naissance
-    ? fmtDate(student.date_naissance)
-    : 'Non renseignée'
-  const prixFormation = student.prix_formation || 'Nous contacter'
-  const dateDebut = '15 septembre ' + annee
-  const dateFin = dateFinFormation(student.formation)
+  const fullName = `${student.first_name} ${student.last_name.toUpperCase()}`
 
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* En-tête */}
+        {/* Header */}
         <View style={styles.header}>
           <Text style={styles.logoBlack}>Diploma </Text>
           <Text style={styles.logoBlue}>Santé</Text>
         </View>
 
-        {/* Titre */}
-        <Text style={styles.title}>CERTIFICAT DE SCOLARITÉ</Text>
+        {/* Title */}
+        <Text style={styles.title}>LETTER OF RECOMMENDATION</Text>
 
-        {/* Corps */}
-        <Text style={styles.body}>
-          Je soussignée, Allouche Jennifer, responsable administrative et opérationnelle de la prépa
-          DIPLOMA SANTÉ, atteste que l&apos;étudiant(e) de nationalité : {nationalite}
-        </Text>
+        <Text style={[styles.body, { marginBottom: 20 }]}>Paris, {today}</Text>
+
+        <Text style={styles.salutation}>To Whom It May Concern,</Text>
 
         <Text style={styles.body}>
-          Nom/Prénom :{' '}
-          <Text style={styles.bold}>
-            {student.last_name.toUpperCase()} {student.first_name}
-          </Text>
-        </Text>
-
-        <Text style={styles.body}>
-          Né(e) le {dateNaissance}, est inscrit(e) pour l&apos;année {annee}/{annee + 1} au sein de notre institut
-          d&apos;enseignement dans le cadre de la formation :
-        </Text>
-
-        <Text style={styles.body}>
-          -{' '}
+          I, Shirel Benchetrit, Training Manager of the preparatory school
+          DIPLOMA SANTÉ, am pleased to recommend{' '}
+          <Text style={styles.bold}>{fullName}</Text>
+          {' '}who has followed with dedication and commitment the{' '}
           <Text style={styles.bold}>{student.formation}</Text>
+          {' '}programme at Diploma Santé.
         </Text>
 
         <Text style={styles.body}>
-          Le prix total de la formation est de :{' '}
-          <Text style={styles.bold}>{prixFormation}</Text>
+          This student has demonstrated rigour, motivation and genuine investment throughout their studies.
         </Text>
 
         <Text style={styles.body}>
-          Début de la formation :{' '}
-          <Text style={styles.bold}>{dateDebut}</Text>
+          I strongly recommend them for any higher education project or professional application.
         </Text>
 
-        <Text style={styles.body}>
-          Fin de la formation :{' '}
-          <Text style={styles.bold}>{dateFin}</Text>
+        <Text style={styles.closing}>
+          Yours sincerely,
         </Text>
 
-        <Text style={[styles.body, { marginTop: 20 }]}>
-          Fait à Paris,{'\n'}Le {today}
+        <Text style={[styles.body, { marginBottom: 4 }]}>
+          Paris, {today}
         </Text>
 
-        <Text style={[styles.body, { marginTop: 8 }]}>
-          Tampon et signature de la direction :
-        </Text>
+        <Text style={[styles.body, { marginBottom: 4 }]}>Stamp and signature of the management:</Text>
 
-        {/* Tampon bas droite */}
+        {/* Stamp */}
         <View style={styles.stamp}>
           <Text style={styles.stampTitle}>DIPLOMA SANTE</Text>
           <Text style={styles.stampText}>85 Avenue Ledru Rollin</Text>

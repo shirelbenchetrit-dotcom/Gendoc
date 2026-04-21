@@ -45,7 +45,6 @@ const styles = StyleSheet.create({
 
 function fmtDate(d: string | null | undefined) {
   if (!d) return '—'
-  // Éviter le décalage UTC pour les dates YYYY-MM-DD
   const parts = d.split('T')[0].split('-')
   if (parts.length === 3) {
     const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]))
@@ -54,27 +53,11 @@ function fmtDate(d: string | null | undefined) {
   return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-function dateFinFormation(formation: string): string {
-  const f = formation.toUpperCase()
-  if (f.includes('PASS') || f.includes('LAS') || f.includes('PAES')) {
-    return '15 juin 2027'
-  }
-  return '15 juin 2027'
-}
-
 interface Props { student: Student }
 
-export function CertificatPDF({ student }: Props) {
+export function AttestationPDF({ student }: Props) {
   const today = fmtDate(new Date().toISOString())
   const annee = new Date().getFullYear()
-
-  const nationalite = student.nationalite || 'France'
-  const dateNaissance = student.date_naissance
-    ? fmtDate(student.date_naissance)
-    : 'Non renseignée'
-  const prixFormation = student.prix_formation || 'Nous contacter'
-  const dateDebut = '15 septembre ' + annee
-  const dateFin = dateFinFormation(student.formation)
 
   return (
     <Document>
@@ -86,12 +69,12 @@ export function CertificatPDF({ student }: Props) {
         </View>
 
         {/* Titre */}
-        <Text style={styles.title}>CERTIFICAT DE SCOLARITÉ</Text>
+        <Text style={styles.title}>ATTESTATION DE PRÉSENCE</Text>
 
         {/* Corps */}
         <Text style={styles.body}>
-          Je soussignée, Allouche Jennifer, responsable administrative et opérationnelle de la prépa
-          DIPLOMA SANTÉ, atteste que l&apos;étudiant(e) de nationalité : {nationalite}
+          Je soussignée, Benchetrit Shirel, responsable des formations de la prépa
+          DIPLOMA SANTÉ, atteste que l&apos;étudiant(e) :
         </Text>
 
         <Text style={styles.body}>
@@ -102,28 +85,19 @@ export function CertificatPDF({ student }: Props) {
         </Text>
 
         <Text style={styles.body}>
-          Né(e) le {dateNaissance}, est inscrit(e) pour l&apos;année {annee}/{annee + 1} au sein de notre institut
-          d&apos;enseignement dans le cadre de la formation :
+          A suivi assidûment les cours dispensés par Diploma Santé durant l&apos;année scolaire{' '}
+          <Text style={styles.bold}>{annee}/{annee + 1}</Text>{' '}
+          dans le cadre de la formation :
         </Text>
 
         <Text style={styles.body}>
           -{' '}
           <Text style={styles.bold}>{student.formation}</Text>
+          {student.universite ? <Text> — {student.universite}</Text> : null}
         </Text>
 
         <Text style={styles.body}>
-          Le prix total de la formation est de :{' '}
-          <Text style={styles.bold}>{prixFormation}</Text>
-        </Text>
-
-        <Text style={styles.body}>
-          Début de la formation :{' '}
-          <Text style={styles.bold}>{dateDebut}</Text>
-        </Text>
-
-        <Text style={styles.body}>
-          Fin de la formation :{' '}
-          <Text style={styles.bold}>{dateFin}</Text>
+          Cette attestation est délivrée à la demande de l&apos;intéressé(e) pour servir et valoir ce que de droit.
         </Text>
 
         <Text style={[styles.body, { marginTop: 20 }]}>
@@ -134,7 +108,7 @@ export function CertificatPDF({ student }: Props) {
           Tampon et signature de la direction :
         </Text>
 
-        {/* Tampon bas droite */}
+        {/* Tampon */}
         <View style={styles.stamp}>
           <Text style={styles.stampTitle}>DIPLOMA SANTE</Text>
           <Text style={styles.stampText}>85 Avenue Ledru Rollin</Text>
