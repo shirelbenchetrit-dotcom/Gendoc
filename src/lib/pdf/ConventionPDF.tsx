@@ -232,6 +232,7 @@ interface Props {
   signatures?: Signatures
   signedAt?: SignedAt
   adminStamp?: string | null
+  adminSignature?: string | null
 }
 
 function SigImage({ src }: { src?: string | null }) {
@@ -274,7 +275,7 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function ConventionPDF({ student, convention, signatures, signedAt, adminStamp }: Props) {
+export function ConventionPDF({ student, convention, signatures, signedAt, adminStamp, adminSignature }: Props) {
   return (
     <Document>
 
@@ -442,7 +443,7 @@ export function ConventionPDF({ student, convention, signatures, signedAt, admin
             <Text style={styles.sigField}>Le : {signedAt?.admin ? fmtDate(signedAt.admin) : ''}</Text>
             <Text style={styles.sigLabel}>Signature et cachet :</Text>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 16, marginTop: 6 }}>
-              <SigImage src={signatures?.admin} />
+              <SigImage src={signatures?.admin ?? adminSignature} />
               {adminStamp
                 ? <Image src={adminStamp} style={{ width: 80, height: 80 }} />
                 : (

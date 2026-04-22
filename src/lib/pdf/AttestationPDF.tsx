@@ -1,4 +1,4 @@
-import { Document, Page, Text, View, StyleSheet } from '@react-pdf/renderer'
+import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer'
 import { Student } from '@/lib/types'
 
 const NAVY = '#1e3a5f'
@@ -53,9 +53,9 @@ function fmtDate(d: string | null | undefined) {
   return new Date(d).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })
 }
 
-interface Props { student: Student }
+interface Props { student: Student; adminSignature?: string | null; adminStamp?: string | null }
 
-export function AttestationPDF({ student }: Props) {
+export function AttestationPDF({ student, adminSignature, adminStamp }: Props) {
   const today = fmtDate(new Date().toISOString())
   const annee = new Date().getFullYear()
 
@@ -108,12 +108,22 @@ export function AttestationPDF({ student }: Props) {
           Tampon et signature de la direction :
         </Text>
 
-        {/* Tampon */}
-        <View style={styles.stamp}>
-          <Text style={styles.stampTitle}>DIPLOMA SANTE</Text>
-          <Text style={styles.stampText}>85 Avenue Ledru Rollin</Text>
-          <Text style={styles.stampText}>75012 Paris</Text>
-          <Text style={styles.stampText}>RCS Paris 878 200 534</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: 8 }}>
+          {adminSignature
+            ? <Image src={adminSignature} style={{ width: 130, height: 55 }} />
+            : <View style={{ width: 130, height: 55 }} />
+          }
+          {adminStamp
+            ? <Image src={adminStamp} style={{ width: 80, height: 80 }} />
+            : (
+              <View style={styles.stamp}>
+                <Text style={styles.stampTitle}>DIPLOMA SANTE</Text>
+                <Text style={styles.stampText}>85 Avenue Ledru Rollin</Text>
+                <Text style={styles.stampText}>75012 Paris</Text>
+                <Text style={styles.stampText}>RCS Paris 878 200 534</Text>
+              </View>
+            )
+          }
         </View>
 
         {/* Footer */}
