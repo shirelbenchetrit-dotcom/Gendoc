@@ -16,15 +16,16 @@ interface ParsedStudent {
   _errors: string[]
 }
 
-// Normalise un header de colonne CSV
 function normalizeHeader(h: string): string {
   return h.toLowerCase().trim()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // enlève accents
-    .replace(/[^a-z0-9_]/g, '_')
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-z0-9]/g, '_')
+    .replace(/_+/g, '_')
 }
 
-// Mapping des noms de colonnes vers les champs internes
+// Mapping large : supporte le CSV générique ET le format de la plateforme d'admission
 const COLUMN_MAP: Record<string, string> = {
+  // CSV générique
   prenom: 'first_name', firstname: 'first_name', first_name: 'first_name',
   nom: 'last_name', lastname: 'last_name', last_name: 'last_name',
   email: 'email', courriel: 'email',
@@ -34,22 +35,34 @@ const COLUMN_MAP: Record<string, string> = {
   date_naissance: 'date_naissance',
   nationalite: 'nationalite', nationalite_: 'nationalite',
   prix_formation: 'prix_formation', prix: 'prix_formation',
+  // Format plateforme d'admission
+  prenom_: 'first_name',
+  nom_: 'last_name',
+  voie: 'formation',           // simplifié (PASS, LAS, PAES…)
+  montant_formation: 'prix_formation',
+  date_de_creation: 'date_inscription',
+  date_de_naissance: 'date_naissance',
 }
 
-function parseCSV(text: string): ParsedStudent[] {
-  // Enlever BOM UTF-8
+function fmtDate(d: string | null | undefined): string {
+  if (!d) return ''
+  // DD/MM/YYYY → YYYY-MM-DD
+  const m1 = String(d).match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+  if (m1) return `${m1[3]}-${m1[2]}-${m1[1]}`
+  // YYYY-MM-DD déjà bon
+  if (/^\d{4}-\d{2}-\d{2}/.test(String(d))) return String(d).substring(0, 10)
+  return ''
+}
+
+function parseCSVText(text: string): ParsedStudent[] {
   const clean = text.replace(/^\uFEFF/, '')
   const lines = clean.split(/\r?\n/).filter(l => l.trim())
   if (lines.length < 2) return []
-
-  // Détecter le séparateur (virgule ou point-virgule)
   const sep = lines[0].includes(';') ? ';' : ','
 
-  // Parser une ligne CSV en tenant compte des guillemets
   const parseLine = (line: string): string[] => {
     const result: string[] = []
-    let cur = ''
-    let inQuotes = false
+    let cur = '', inQuotes = false
     for (let i = 0; i < line.length; i++) {
       const c = line[i]
       if (c === '"') {
@@ -57,9 +70,7 @@ function parseCSV(text: string): ParsedStudent[] {
         else inQuotes = !inQuotes
       } else if (c === sep && !inQuotes) {
         result.push(cur.trim()); cur = ''
-      } else {
-        cur += c
-      }
+      } else cur += c
     }
     result.push(cur.trim())
     return result
@@ -70,29 +81,71 @@ function parseCSV(text: string): ParsedStudent[] {
     return COLUMN_MAP[norm] || norm
   })
 
-  return lines.slice(1).map(line => {
-    const cells = parseLine(line)
-    const row: Record<string, string> = {}
-    headers.forEach((h, i) => { row[h] = cells[i] || '' })
+  return lines.slice(1).map(line => mapRow(headers, parseLine(line)))
+    .filter(r => r.first_name || r.last_name || r.email)
+}
 
+function mapRow(headers: string[], cells: string[]): ParsedStudent {
+  const row: Record<string, string> = {}
+  headers.forEach((h, i) => { row[h] = cells[i] || '' })
+
+  // Si "voie" et "formation" tous les deux présents, préférer voie sauf si vide
+  const formation = row.formation || row.voie || ''
+  const errors: string[] = []
+  if (!row.first_name) errors.push('Prénom manquant')
+  if (!row.last_name) errors.push('Nom manquant')
+  if (!formation) errors.push('Formation manquante')
+
+  return {
+    first_name: row.first_name || '',
+    last_name: row.last_name || '',
+    email: row.email || '',
+    formation,
+    universite: row.universite || '',
+    date_inscription: fmtDate(row.date_inscription),
+    date_naissance: fmtDate(row.date_naissance),
+    nationalite: row.nationalite || '',
+    prix_formation: row.prix_formation || '',
+    _errors: errors,
+  }
+}
+
+async function parseXLSX(file: File): Promise<ParsedStudent[]> {
+  const XLSX = await import('xlsx')
+  const buffer = await file.arrayBuffer()
+  const wb = XLSX.read(buffer, { type: 'array', cellDates: false })
+  const sheet = wb.Sheets[wb.SheetNames[0]]
+  const rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet, { defval: '' })
+
+  return rows.map(row => {
+    // Normaliser toutes les clés
+    const normalized: Record<string, string> = {}
+    for (const [k, v] of Object.entries(row)) {
+      const normKey = normalizeHeader(k)
+      const mappedKey = COLUMN_MAP[normKey] || normKey
+      normalized[mappedKey] = String(v || '')
+    }
+
+    // Voie présente → utiliser pour formation si formation vide
+    const formation = normalized.formation || normalized.voie || ''
     const errors: string[] = []
-    if (!row.first_name) errors.push('Prénom manquant')
-    if (!row.last_name) errors.push('Nom manquant')
-    if (!row.formation) errors.push('Formation manquante')
+    if (!normalized.first_name) errors.push('Prénom manquant')
+    if (!normalized.last_name) errors.push('Nom manquant')
+    if (!formation) errors.push('Formation manquante')
 
     return {
-      first_name: row.first_name || '',
-      last_name: row.last_name || '',
-      email: row.email || '',
-      formation: row.formation || '',
-      universite: row.universite || '',
-      date_inscription: row.date_inscription || '',
-      date_naissance: row.date_naissance || '',
-      nationalite: row.nationalite || '',
-      prix_formation: row.prix_formation || '',
+      first_name: (normalized.first_name || '').trim(),
+      last_name: (normalized.last_name || '').trim(),
+      email: (normalized.email || '').trim(),
+      formation: formation.trim(),
+      universite: (normalized.universite || '').trim(),
+      date_inscription: fmtDate(normalized.date_inscription),
+      date_naissance: fmtDate(normalized.date_naissance),
+      nationalite: (normalized.nationalite || '').trim(),
+      prix_formation: normalized.prix_formation ? String(normalized.prix_formation) : '',
       _errors: errors,
     }
-  }).filter(r => r.first_name || r.last_name || r.email) // ignorer les lignes vides
+  }).filter(r => r.first_name || r.last_name || r.email)
 }
 
 const CSV_TEMPLATE = `prenom;nom;email;formation;universite;date_inscription;date_naissance;nationalite;prix_formation
@@ -106,18 +159,27 @@ export function ImportStudentsModal() {
   const [students, setStudents] = useState<ParsedStudent[]>([])
   const [step, setStep] = useState<'upload' | 'preview' | 'done'>('upload')
   const [importing, setImporting] = useState(false)
-  const [result, setResult] = useState<{ imported: number } | null>(null)
+  const [result, setResult] = useState<{ imported: number; skipped: number } | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [parsing, setParsing] = useState(false)
 
-  const handleFile = (file: File) => {
-    const reader = new FileReader()
-    reader.onload = e => {
-      const text = e.target?.result as string
-      const parsed = parseCSV(text)
+  const handleFile = async (file: File) => {
+    setParsing(true)
+    try {
+      let parsed: ParsedStudent[]
+      if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+        parsed = await parseXLSX(file)
+      } else {
+        const text = await file.text()
+        parsed = parseCSVText(text)
+      }
       setStudents(parsed)
       setStep('preview')
+    } catch (e) {
+      alert('Erreur lors de la lecture du fichier : ' + (e instanceof Error ? e.message : String(e)))
+    } finally {
+      setParsing(false)
     }
-    reader.readAsText(file, 'UTF-8')
   }
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,7 +213,7 @@ export function ImportStudentsModal() {
       })
       const data = await res.json()
       if (!res.ok) throw new Error(data.error)
-      setResult({ imported: data.imported })
+      setResult({ imported: data.imported, skipped: data.skipped || 0 })
       setStep('done')
       router.refresh()
     } catch (err) {
@@ -180,7 +242,7 @@ export function ImportStudentsModal() {
         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12" />
         </svg>
-        Importer CSV
+        Importer
       </button>
 
       {open && (
@@ -193,69 +255,55 @@ export function ImportStudentsModal() {
               <div>
                 <h2 className="font-bold text-[#1e3a5f] text-lg">Importer des étudiants</h2>
                 <p className="text-gray-400 text-xs mt-0.5">
-                  {step === 'upload' && 'Téléchargez le modèle, remplissez-le et importez-le'}
-                  {step === 'preview' && `${students.length} ligne${students.length > 1 ? 's' : ''} détectée${students.length > 1 ? 's' : ''} — ${validCount} valide${validCount > 1 ? 's' : ''}, ${errorCount} erreur${errorCount > 1 ? 's' : ''}`}
+                  {step === 'upload' && 'Supporte les fichiers CSV et Excel (.xlsx) — les doublons sont ignorés automatiquement'}
+                  {step === 'preview' && `${students.length} ligne${students.length > 1 ? 's' : ''} — ${validCount} valide${validCount > 1 ? 's' : ''}, ${errorCount} erreur${errorCount > 1 ? 's' : ''}`}
                   {step === 'done' && 'Import terminé'}
                 </p>
               </div>
               <button onClick={close} className="text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
             </div>
 
-            {/* Corps */}
             <div className="flex-1 overflow-y-auto p-6">
 
               {/* ÉTAPE 1 : Upload */}
               {step === 'upload' && (
                 <div className="space-y-5">
-                  {/* Télécharger modèle */}
-                  <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-semibold text-blue-800">1. Téléchargez le modèle CSV</p>
-                      <p className="text-xs text-blue-500 mt-0.5">Remplissez-le avec vos étudiants (séparateur : point-virgule)</p>
+                  {/* Info formats */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="bg-blue-50 border border-blue-100 rounded-xl p-4">
+                      <p className="text-sm font-semibold text-blue-800 mb-1">📊 Export plateforme d'admission</p>
+                      <p className="text-xs text-blue-500">Glisse directement le fichier <strong>.xlsx</strong> exporté depuis admission.diploma-sante.fr</p>
                     </div>
-                    <button
-                      onClick={downloadTemplate}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 bg-white border border-blue-200 text-blue-700 text-sm rounded-lg hover:bg-blue-50 transition font-medium"
-                    >
-                      ⬇ modele_import.csv
-                    </button>
+                    <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                      <p className="text-sm font-semibold text-gray-700 mb-1">📄 Fichier CSV générique</p>
+                      <button onClick={downloadTemplate} className="text-xs text-[#38bdf8] hover:underline">⬇ Télécharger le modèle CSV</button>
+                    </div>
                   </div>
 
                   {/* Zone de drop */}
-                  <div>
-                    <p className="text-sm font-semibold text-gray-700 mb-2">2. Importez votre fichier CSV</p>
-                    <div
-                      className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition ${dragOver ? 'border-[#38bdf8] bg-blue-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
-                      onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-                      onDragLeave={() => setDragOver(false)}
-                      onDrop={onDrop}
-                      onClick={() => fileRef.current?.click()}
-                    >
-                      <svg className="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                      </svg>
-                      <p className="text-sm text-gray-500">Glissez votre fichier CSV ici</p>
-                      <p className="text-xs text-gray-400 mt-1">ou cliquez pour sélectionner</p>
-                      <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" onChange={onFileChange} />
-                    </div>
+                  <div
+                    className={`border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition ${dragOver ? 'border-[#38bdf8] bg-blue-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'}`}
+                    onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                    onDragLeave={() => setDragOver(false)}
+                    onDrop={onDrop}
+                    onClick={() => fileRef.current?.click()}
+                  >
+                    {parsing ? (
+                      <p className="text-sm text-gray-500">Lecture du fichier...</p>
+                    ) : (
+                      <>
+                        <svg className="w-10 h-10 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        <p className="text-sm text-gray-500">Glissez votre fichier <strong>CSV</strong> ou <strong>Excel (.xlsx)</strong> ici</p>
+                        <p className="text-xs text-gray-400 mt-1">ou cliquez pour sélectionner</p>
+                        <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,text/csv" className="hidden" onChange={onFileChange} />
+                      </>
+                    )}
                   </div>
 
-                  {/* Colonnes acceptées */}
-                  <div className="bg-gray-50 rounded-xl p-4">
-                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Colonnes reconnues</p>
-                    <div className="flex flex-wrap gap-2">
-                      {[
-                        { col: 'prenom', req: true }, { col: 'nom', req: true }, { col: 'formation', req: true },
-                        { col: 'email', req: false }, { col: 'universite', req: false },
-                        { col: 'date_inscription', req: false }, { col: 'date_naissance', req: false },
-                        { col: 'nationalite', req: false }, { col: 'prix_formation', req: false },
-                      ].map(({ col, req }) => (
-                        <span key={col} className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-mono ${req ? 'bg-[#1e3a5f]/10 text-[#1e3a5f]' : 'bg-gray-100 text-gray-500'}`}>
-                          {col}{req && <span className="text-red-400 font-bold">*</span>}
-                        </span>
-                      ))}
-                    </div>
-                    <p className="text-xs text-gray-400 mt-2"><span className="text-red-400 font-bold">*</span> Obligatoire</p>
+                  <div className="bg-green-50 border border-green-100 rounded-xl px-4 py-3 text-xs text-green-700">
+                    ✓ Les étudiants dont l'email existe déjà dans Gendoc sont ignorés automatiquement
                   </div>
                 </div>
               )}
@@ -265,10 +313,9 @@ export function ImportStudentsModal() {
                 <div className="space-y-4">
                   {errorCount > 0 && (
                     <div className="bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm text-red-700">
-                      ⚠ {errorCount} ligne{errorCount > 1 ? 's' : ''} avec des erreurs — elles ne seront pas importées.
+                      ⚠ {errorCount} ligne{errorCount > 1 ? 's' : ''} avec erreurs — elles ne seront pas importées.
                     </div>
                   )}
-
                   <div className="overflow-x-auto rounded-xl border border-gray-100">
                     <table className="w-full text-xs">
                       <thead>
@@ -316,10 +363,13 @@ export function ImportStudentsModal() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
-                  <h3 className="text-lg font-bold text-gray-800 mb-1">Import réussi !</h3>
-                  <p className="text-gray-500 text-sm">
-                    <span className="font-bold text-[#1e3a5f] text-xl">{result.imported}</span> étudiant{result.imported > 1 ? 's' : ''} ajouté{result.imported > 1 ? 's' : ''} avec succès.
+                  <h3 className="text-lg font-bold text-gray-800 mb-2">Import réussi !</h3>
+                  <p className="text-gray-500 text-sm mb-1">
+                    <span className="font-bold text-[#1e3a5f] text-xl">{result.imported}</span> étudiant{result.imported > 1 ? 's' : ''} ajouté{result.imported > 1 ? 's' : ''}
                   </p>
+                  {result.skipped > 0 && (
+                    <p className="text-gray-400 text-sm">{result.skipped} doublon{result.skipped > 1 ? 's' : ''} ignoré{result.skipped > 1 ? 's' : ''} (email déjà présent)</p>
+                  )}
                 </div>
               )}
             </div>
@@ -329,12 +379,9 @@ export function ImportStudentsModal() {
               {step === 'upload' && (
                 <button onClick={close} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">Annuler</button>
               )}
-
               {step === 'preview' && (
                 <>
-                  <button onClick={reset} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 flex items-center gap-1">
-                    ← Changer de fichier
-                  </button>
+                  <button onClick={reset} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700">← Changer de fichier</button>
                   <button
                     onClick={handleImport}
                     disabled={validCount === 0 || importing}
@@ -344,7 +391,6 @@ export function ImportStudentsModal() {
                   </button>
                 </>
               )}
-
               {step === 'done' && (
                 <button onClick={close} className="ml-auto px-5 py-2.5 bg-[#1e3a5f] text-white text-sm font-semibold rounded-xl hover:bg-[#2d5a8e] transition">
                   Fermer
