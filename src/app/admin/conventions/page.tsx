@@ -171,6 +171,22 @@ export default function ConventionsPage() {
                       {status === 'completed' && '✓ Signé par toutes les parties'}
                       {status === 'draft' && 'Brouillon'}
                     </span>
+                    {!adminSigned && (
+                      <Link
+                        href={`/admin/conventions/${conv.id}`}
+                        className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-[#b8962e] text-white hover:bg-[#a07a20] transition"
+                      >
+                        ✍ Signer
+                      </Link>
+                    )}
+                    {adminSigned && status !== 'completed' && (
+                      <Link
+                        href={`/admin/conventions/${conv.id}`}
+                        className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-600 hover:bg-gray-200 transition"
+                      >
+                        Voir →
+                      </Link>
+                    )}
                     {status === 'completed' && (
                       <a
                         href={`/api/conventions/${conv.id}/download`}

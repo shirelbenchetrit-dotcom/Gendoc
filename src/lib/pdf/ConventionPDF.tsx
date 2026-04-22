@@ -231,6 +231,7 @@ interface Props {
   convention: ConventionData
   signatures?: Signatures
   signedAt?: SignedAt
+  adminStamp?: string | null
 }
 
 function SigImage({ src }: { src?: string | null }) {
@@ -273,7 +274,7 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
-export function ConventionPDF({ student, convention, signatures, signedAt }: Props) {
+export function ConventionPDF({ student, convention, signatures, signedAt, adminStamp }: Props) {
   return (
     <Document>
 
@@ -439,15 +440,20 @@ export function ConventionPDF({ student, convention, signatures, signedAt }: Pro
             <Text style={styles.sigField}>Nom : Benchetrit</Text>
             <Text style={styles.sigField}>Prénom : Shirel</Text>
             <Text style={styles.sigField}>Le : {signedAt?.admin ? fmtDate(signedAt.admin) : ''}</Text>
-            <Text style={styles.sigLabel}>Cachet :</Text>
+            <Text style={styles.sigLabel}>Signature et cachet :</Text>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 16, marginTop: 6 }}>
-              <View style={styles.stampBox}>
-                <Text style={styles.stampTitle}>DIPLOMA SANTE</Text>
-                <Text style={styles.stampText}>85 Avenue Ledru Rollin</Text>
-                <Text style={styles.stampText}>75012 Paris</Text>
-                <Text style={styles.stampText}>RCS Paris 878 200 534</Text>
-              </View>
               <SigImage src={signatures?.admin} />
+              {adminStamp
+                ? <Image src={adminStamp} style={{ width: 80, height: 80 }} />
+                : (
+                  <View style={styles.stampBox}>
+                    <Text style={styles.stampTitle}>DIPLOMA SANTE</Text>
+                    <Text style={styles.stampText}>85 Avenue Ledru Rollin</Text>
+                    <Text style={styles.stampText}>75012 Paris</Text>
+                    <Text style={styles.stampText}>RCS Paris 878 200 534</Text>
+                  </View>
+                )
+              }
             </View>
           </View>
 

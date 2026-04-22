@@ -49,6 +49,7 @@ export interface ConventionData {
   studentLastName?: string
   studentFormation?: string
   studentEmail?: string
+  adminStamp?: string
 }
 
 export type ConventionStatus = 'draft' | 'admin_signed' | 'organisme_signed' | 'completed'

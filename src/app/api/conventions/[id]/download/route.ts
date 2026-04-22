@@ -36,6 +36,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
       organisme: conv.organisme_signed_at,
       student: conv.student_signed_at,
     },
+    adminStamp: convData.adminStamp || null,
   })
 
   const pdfBuffer = await renderToBuffer(element as React.ReactElement<DocumentProps>)

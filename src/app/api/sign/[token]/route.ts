@@ -190,6 +190,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             organisme: fullConv.organisme_signed_at,
             student: fullConv.student_signed_at,
           },
+          adminStamp: convData.adminStamp || null,
         })
         const pdfBuffer = await renderToBuffer(element as React.ReactElement<DocumentProps>)
         const pdfBase64 = Buffer.from(pdfBuffer).toString('base64')
