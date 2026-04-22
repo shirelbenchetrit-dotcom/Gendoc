@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { renderToBuffer } from '@react-pdf/renderer'
+import { renderToBuffer, DocumentProps } from '@react-pdf/renderer'
 import { ConventionPDF } from '@/lib/pdf/ConventionPDF'
 import { ConventionData } from '@/lib/types'
 import { sendEmail } from '@/lib/brevo'
@@ -143,7 +143,7 @@ export async function POST(request: NextRequest) {
   const element = React.createElement(ConventionPDF, { student, convention: conventionData })
   let pdfBuffer: Uint8Array
   try {
-    pdfBuffer = await renderToBuffer(element as React.ReactElement)
+    pdfBuffer = await renderToBuffer(element as React.ReactElement<DocumentProps>)
   } catch (err) {
     console.error('Erreur PDF:', err)
     return NextResponse.json({ error: 'Erreur génération PDF' }, { status: 500 })

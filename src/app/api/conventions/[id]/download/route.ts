@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { renderToBuffer } from '@react-pdf/renderer'
+import { renderToBuffer, DocumentProps } from '@react-pdf/renderer'
 import { ConventionPDF } from '@/lib/pdf/ConventionPDF'
 import { Student } from '@/lib/types'
 import React from 'react'
@@ -38,7 +38,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     },
   })
 
-  const pdfBuffer = await renderToBuffer(element as React.ReactElement)
+  const pdfBuffer = await renderToBuffer(element as React.ReactElement<DocumentProps>)
   const filename = `convention_signee_${student.last_name.toLowerCase()}_${student.first_name.toLowerCase()}.pdf`
 
   return new NextResponse(Buffer.from(pdfBuffer), {

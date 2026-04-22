@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { renderToBuffer } from '@react-pdf/renderer'
+import { renderToBuffer, DocumentProps } from '@react-pdf/renderer'
 import { ConventionPDF } from '@/lib/pdf/ConventionPDF'
 import { sendEmail } from '@/lib/brevo'
 import { Student } from '@/lib/types'
@@ -191,7 +191,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
             student: fullConv.student_signed_at,
           },
         })
-        const pdfBuffer = await renderToBuffer(element as React.ReactElement)
+        const pdfBuffer = await renderToBuffer(element as React.ReactElement<DocumentProps>)
         const pdfBase64 = Buffer.from(pdfBuffer).toString('base64')
         const filename = `convention_signee_${studentObj.last_name.toLowerCase()}_${studentObj.first_name.toLowerCase()}.pdf`
         const attachment = [{ name: filename, content: pdfBase64 }]

@@ -6,11 +6,20 @@ import { ImportStudentsModal } from '@/components/ImportStudentsModal'
 export default async function EtudiantsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>
+  searchParams: Promise<{ q?: string; f?: string }>
 }) {
-  const { q } = await searchParams
+  const { q, f } = await searchParams
   const supabase = await createClient()
 
+  // Récupérer les formations distinctes pour le filtre
+  const { data: formationsData } = await supabase
+    .from('students')
+    .select('formation')
+    .order('formation', { ascending: true })
+
+  const formations = [...new Set((formationsData || []).map((s: { formation: string }) => s.formation).filter(Boolean))].sort()
+
+  // Requête principale
   let query = supabase
     .from('students')
     .select('*')
@@ -20,7 +29,13 @@ export default async function EtudiantsPage({
     query = query.or(`last_name.ilike.%${q}%,first_name.ilike.%${q}%,email.ilike.%${q}%`)
   }
 
+  if (f) {
+    query = query.eq('formation', f)
+  }
+
   const { data: students, error } = await query
+
+  const hasFilters = !!q || !!f
 
   return (
     <div>
@@ -42,9 +57,9 @@ export default async function EtudiantsPage({
         </div>
       </div>
 
-      {/* Recherche */}
-      <form method="GET" className="mb-6">
-        <div className="relative">
+      {/* Recherche + filtre formation */}
+      <form method="GET" className="mb-6 flex gap-3">
+        <div className="relative flex-1">
           <svg
             className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4"
             fill="none"
@@ -61,7 +76,44 @@ export default async function EtudiantsPage({
             className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#38bdf8] bg-white"
           />
         </div>
+        <select
+          name="f"
+          defaultValue={f ?? ''}
+          className="px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#38bdf8] bg-white text-sm text-gray-700 min-w-[220px]"
+        >
+          <option value="">Toutes les formations</option>
+          {formations.map(formation => (
+            <option key={formation} value={formation}>
+              {formation}
+            </option>
+          ))}
+        </select>
+        <button
+          type="submit"
+          className="px-4 py-3 bg-[#1e3a5f] text-white rounded-xl text-sm font-semibold hover:bg-[#2d5a8e] transition"
+        >
+          Filtrer
+        </button>
+        {hasFilters && (
+          <Link
+            href="/admin/etudiants"
+            className="px-4 py-3 border border-gray-200 text-gray-500 rounded-xl text-sm font-medium hover:bg-gray-50 transition"
+          >
+            Réinitialiser
+          </Link>
+        )}
       </form>
+
+      {/* Badge formation active */}
+      {f && (
+        <div className="mb-4 flex items-center gap-2">
+          <span className="text-sm text-gray-500">Formation :</span>
+          <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-[#1e3a5f]/10 text-[#1e3a5f]">
+            {f}
+            <Link href={q ? `/admin/etudiants?q=${q}` : '/admin/etudiants'} className="hover:text-red-500 transition">✕</Link>
+          </span>
+        </div>
+      )}
 
       {error && (
         <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm mb-4">
@@ -72,9 +124,9 @@ export default async function EtudiantsPage({
       {!students || students.length === 0 ? (
         <div className="bg-white rounded-2xl border border-gray-100 p-12 text-center">
           <p className="text-gray-400 text-lg mb-2">Aucun étudiant trouvé</p>
-          {q ? (
+          {hasFilters ? (
             <p className="text-gray-400 text-sm">
-              Aucun résultat pour &quot;{q}&quot;.{' '}
+              Aucun résultat pour ces filtres.{' '}
               <Link href="/admin/etudiants" className="text-[#38bdf8] hover:underline">Voir tous les étudiants</Link>
             </p>
           ) : (
