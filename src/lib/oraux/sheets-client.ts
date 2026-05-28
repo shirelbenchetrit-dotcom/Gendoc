@@ -116,15 +116,34 @@ export async function findReadyRows(): Promise<ReadyRow[]> {
   return ready
 }
 
-/** Mark a row as sent by writing to column N (the "Email envoyé ?" column) */
-export async function markRowAsSent(tabName: string, rowNum: number, status: 'ok' | 'error' = 'ok'): Promise<void> {
-  const sheets = getSheetsClient()
+function sentMarkValue(status: 'ok' | 'error'): string {
   const now = new Date()
   const dd = String(now.getDate()).padStart(2, '0')
   const mm = String(now.getMonth() + 1).padStart(2, '0')
   const hh = String(now.getHours()).padStart(2, '0')
   const min = String(now.getMinutes()).padStart(2, '0')
-  const value = status === 'ok' ? `✅ ${dd}/${mm} ${hh}:${min}` : `❌ erreur ${dd}/${mm} ${hh}:${min}`
+  return status === 'ok' ? `✅ ${dd}/${mm} ${hh}:${min}` : `❌ erreur ${dd}/${mm} ${hh}:${min}`
+}
+
+// Cache des vrais titres de tabs (certains ont un espace en fin, ex: "Mathieu Bach ")
+let _realTitles: Map<string, string> | null = null
+async function getRealTabTitles(): Promise<Map<string, string>> {
+  if (_realTitles) return _realTitles
+  const sheets = getSheetsClient()
+  const meta = await sheets.spreadsheets.get({ spreadsheetId: SHEET_ID })
+  const map = new Map<string, string>()
+  for (const s of meta.data.sheets || []) {
+    const title = s.properties?.title
+    if (title) map.set(title.trim(), title)
+  }
+  _realTitles = map
+  return map
+}
+
+/** Mark a row as sent by writing to column N (the "Email envoyé ?" column) */
+export async function markRowAsSent(tabName: string, rowNum: number, status: 'ok' | 'error' = 'ok'): Promise<void> {
+  const sheets = getSheetsClient()
+  const value = sentMarkValue(status)
 
   // Try with trailing space first (most tabs have one), fall back without
   const ranges = [`'${tabName} '!N${rowNum}`, `'${tabName}'!N${rowNum}`]
@@ -143,4 +162,30 @@ export async function markRowAsSent(tabName: string, rowNum: number, status: 'ok
     }
   }
   throw lastErr
+}
+
+/**
+ * Marque plusieurs lignes en UN SEUL appel API (values.batchUpdate compte pour 1 write request,
+ * quel que soit le nombre de cellules → évite le quota "60 writes/min").
+ * À utiliser pour les gros lots.
+ */
+export async function markRowsAsSentBatch(
+  marks: Array<{ tabName: string; rowNum: number; status?: 'ok' | 'error' }>
+): Promise<void> {
+  if (!marks.length) return
+  const sheets = getSheetsClient()
+  const titles = await getRealTabTitles()
+
+  const data = marks.map(m => {
+    const realTitle = titles.get(m.tabName.trim()) ?? m.tabName
+    return {
+      range: `'${realTitle}'!N${m.rowNum}`,
+      values: [[sentMarkValue(m.status ?? 'ok')]],
+    }
+  })
+
+  await sheets.spreadsheets.values.batchUpdate({
+    spreadsheetId: SHEET_ID,
+    requestBody: { valueInputOption: 'RAW', data },
+  })
 }

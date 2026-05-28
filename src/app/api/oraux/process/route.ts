@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { createClient } from '@/lib/supabase/server'
-import { findReadyRows, markRowAsSent } from '@/lib/oraux/sheets-client'
+import { findReadyRows, markRowAsSent, markRowsAsSentBatch } from '@/lib/oraux/sheets-client'
 import { renderResultEmail } from '@/lib/oraux/email-template'
 import { sendEmail } from '@/lib/brevo'
 
@@ -53,6 +53,8 @@ export async function POST(req: NextRequest) {
 
   const rows = await findReadyRows()
   const results: Array<{ student: string; email: string; status: 'sent' | 'error'; error?: string }> = []
+  // On accumule les marquages pour les écrire en 1 seul appel (évite le quota write 60/min)
+  const toMark: Array<{ tabName: string; rowNum: number; status: 'ok' | 'error' }> = []
 
   for (const row of rows) {
     try {
@@ -62,17 +64,29 @@ export async function POST(req: NextRequest) {
         subject,
         htmlContent: html,
       })
-      await markRowAsSent(row.tabName, row.rowNum, 'ok')
+      toMark.push({ tabName: row.tabName, rowNum: row.rowNum, status: 'ok' })
       results.push({ student: row.studentName, email: row.email, status: 'sent' })
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'unknown'
-      // On essaie de marquer l'erreur dans le sheet pour traçabilité
-      try { await markRowAsSent(row.tabName, row.rowNum, 'error') } catch {}
+      toMark.push({ tabName: row.tabName, rowNum: row.rowNum, status: 'error' })
       results.push({ student: row.studentName, email: row.email, status: 'error', error: msg })
+    }
+  }
+
+  // Marquage groupé en 1 appel API
+  let markError: string | null = null
+  try {
+    await markRowsAsSentBatch(toMark)
+  } catch (e: unknown) {
+    markError = e instanceof Error ? e.message : 'unknown'
+    // Fallback ligne par ligne avec pauses pour rester sous le quota
+    for (const m of toMark) {
+      try { await markRowAsSent(m.tabName, m.rowNum, m.status) } catch {}
+      await new Promise(r => setTimeout(r, 1100))
     }
   }
 
   const sentCount = results.filter(r => r.status === 'sent').length
   const errorCount = results.filter(r => r.status === 'error').length
-  return NextResponse.json({ total: results.length, sent: sentCount, errors: errorCount, results })
+  return NextResponse.json({ total: results.length, sent: sentCount, errors: errorCount, markError, results })
 }

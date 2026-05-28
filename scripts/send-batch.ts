@@ -9,7 +9,7 @@ envContent.split('\n').forEach(line => {
   if (m) process.env[m[1]] = m[2].replace(/^["']|["']$/g, '')
 })
 
-import { findReadyRows, markRowAsSent } from '../src/lib/oraux/sheets-client'
+import { findReadyRows, markRowsAsSentBatch } from '../src/lib/oraux/sheets-client'
 import { renderResultEmail } from '../src/lib/oraux/email-template'
 import { sendEmail } from '../src/lib/brevo'
 
@@ -27,13 +27,15 @@ async function main() {
 
   const results = { sent: 0, emailError: 0, markError: 0 }
   const errors: Array<{ student: string; email: string; phase: string; error: string }> = []
+  // On accumule les lignes à marquer, puis on écrit tout en 1 appel groupé à la fin
+  const toMark: Array<{ tabName: string; rowNum: number; status: 'ok' | 'error' }> = []
 
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i]
     const prefix = `[${(i + 1).toString().padStart(2, ' ')}/${rows.length}]`
     process.stdout.write(`${prefix} ${row.studentName.padEnd(30)} (${row.note}/20, ${row.prof.matiere.padEnd(15)}) → ${row.email} ... `)
 
-    // Étape 1 : envoi du mail
+    // Envoi du mail
     try {
       const { subject, html } = renderResultEmail(row)
       await sendEmail({
@@ -41,30 +43,40 @@ async function main() {
         subject,
         htmlContent: html,
       })
+      results.sent++
+      toMark.push({ tabName: row.tabName, rowNum: row.rowNum, status: 'ok' })
+      console.log('✅')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'unknown'
       results.emailError++
       errors.push({ student: row.studentName, email: row.email, phase: 'send', error: msg })
+      toMark.push({ tabName: row.tabName, rowNum: row.rowNum, status: 'error' })
       console.log(`❌ MAIL: ${msg}`)
-      // On essaie quand même de marquer l'erreur dans le sheet
-      try { await markRowAsSent(row.tabName, row.rowNum, 'error') } catch {}
-      continue
     }
 
-    // Étape 2 : marquage du sheet
-    try {
-      await markRowAsSent(row.tabName, row.rowNum, 'ok')
-      results.sent++
-      console.log('✅')
-    } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'unknown'
-      results.markError++
-      errors.push({ student: row.studentName, email: row.email, phase: 'mark-sheet', error: msg })
-      console.log(`⚠️  MAIL OK mais marquage KO: ${msg}`)
-    }
+    // Pause anti-rate-limit Brevo
+    await sleep(120)
+  }
 
-    // Petite pause anti-rate-limit Brevo (300 emails/sec max sur leur API, mais on reste safe)
-    await sleep(150)
+  // Marquage groupé du sheet : 1 seul appel API (ne tape jamais le quota write)
+  console.log('\n📝 Marquage du sheet (groupé)...')
+  try {
+    await markRowsAsSentBatch(toMark)
+    console.log(`✅ ${toMark.length} lignes marquées en 1 appel`)
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : 'unknown'
+    results.markError = toMark.length
+    console.log(`❌ Marquage groupé KO: ${msg}`)
+    // Fallback : on tente ligne par ligne avec pauses pour rester sous le quota
+    console.log('   Fallback ligne par ligne...')
+    const { markRowAsSent } = await import('../src/lib/oraux/sheets-client')
+    let ok = 0
+    for (const m of toMark) {
+      try { await markRowAsSent(m.tabName, m.rowNum, m.status); ok++ } catch {}
+      await sleep(1100)
+    }
+    results.markError = toMark.length - ok
+    console.log(`   ${ok}/${toMark.length} marquées en fallback`)
   }
 
   console.log('\n' + '─'.repeat(60))
